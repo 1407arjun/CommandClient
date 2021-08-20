@@ -1,43 +1,32 @@
 package com.arjun1407.commandclient;
 
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-
 import androidx.biometric.BiometricManager;
 import androidx.biometric.BiometricPrompt;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
 
-import android.content.Context;
-import android.net.DhcpInfo;
-import android.net.wifi.WifiManager;
-import android.os.Bundle;
-import android.text.format.Formatter;
-import android.util.Log;
-import android.view.View;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.TextView;
-
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.VolleyLog;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textfield.TextInputLayout;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.concurrent.Executor;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
-import retrofit2.Retrofit;
-import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -117,13 +106,6 @@ public class MainActivity extends AppCompatActivity {
             pinLayout.setError(null);
             responseText.setText("");
 
-//            InputMethodManager inputMethodManager = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
-//            if (getCurrentFocus() != null) {
-//                getCurrentFocus().clearFocus();
-//                if (getCurrentFocus().getWindowToken() != null)
-//                    inputMethodManager.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
-//            }
-
             if (!ipText.getText().toString().isEmpty() && !portText.getText().toString().isEmpty() &&
                     !cmdText.getText().toString().isEmpty() && !pinText.getText().toString().isEmpty()) {
                 biometricPrompt.authenticate(info);
@@ -140,63 +122,56 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void getIp() {
-        /*Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("https://api.ipify.org")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
-
-        API api = retrofit.create(API.class);
-        Call<ResponseModel> call = api.getIp("json");
-        call.enqueue(new Callback<ResponseModel>() {
-            @Override
-            public void onResponse(Call<ResponseModel> call, Response<ResponseModel> response) {
-                if (response.body() != null) {
-                    ResponseModel model = response.body();
-                    Log.i("myIP", model.getIp());
-                    postCmd(model.getIp());
-                }
-            }
-
-            @Override
-            public void onFailure(Call<ResponseModel> call, Throwable t) {
-                Snackbar.make(layout, "Couldn't get your IP. " + t.getMessage(), Snackbar.LENGTH_LONG).show();
-            }
-        });*/
-    }
-
     private void postCmd() {
         Snackbar.make(layout, "Authenticated successfully.", Snackbar.LENGTH_LONG).show();
 
-        Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl("http://" + ipText.getText().toString() + ":" + portText.getText().toString() + "/")
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+        RequestQueue queue = SingletonRequestQueue.getInstance(getApplicationContext()).getRequestQueue();
+        VolleyLog.DEBUG = true;
+        String BASE_URL = "http://" + ipText.getText().toString() + ":" + portText.getText().toString() + "/cmd";
 
-        API api = retrofit.create(API.class);
         try {
             JSONObject object = new JSONObject();
             object.put("pin", Integer.parseInt(pinText.getText().toString()));
             object.put("cmd", cmdText.getText().toString());
-            Call<JSONObject> call = api.sendCmd(object);
 
-            call.enqueue(new Callback<JSONObject>() {
+            JsonObjectRequest request = new JsonObjectRequest(BASE_URL, object, new Response.Listener<JSONObject>() {
                 @Override
-                public void onResponse(Call<JSONObject> call, Response<JSONObject> response) {
-                    if (response.body() != null) {
-                        Snackbar.make(layout, "Request sent to server.", Snackbar.LENGTH_LONG).show();
-                        JSONObject res = response.body();
-                        responseText.setText(res.toString());
+                public void onResponse(JSONObject response) {
+                    try {
+                        if (response != null) {
+                            Snackbar.make(layout, "Request sent to server.", Snackbar.LENGTH_LONG).show();
+                            responseText.setText(response.get("response").toString());
+                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
                     }
                 }
+            }, new Response.ErrorListener() {
+                @Override
+                public void onErrorResponse(VolleyError error) {
+                    if (error.getMessage() != null)
+                        Snackbar.make(layout, error.getMessage(), Snackbar.LENGTH_LONG).show();
+                }
+            }) {
+                @Override
+                public int getMethod() {
+                    return Method.POST;
+                }
 
                 @Override
-                public void onFailure(Call<JSONObject> call, Throwable t) {
-                    if (t.getMessage() != null)
-                        Snackbar.make(layout, t.getMessage(), Snackbar.LENGTH_LONG).show();
+                public Priority getPriority() {
+                    return Priority.NORMAL;
                 }
-            });
-        } catch (JSONException e){
+
+                @Override
+                public String getBodyContentType() {
+                    return "application/json; charset=utf-8";
+                }
+            };
+
+            queue.add(request);
+
+        } catch (JSONException e) {
             e.printStackTrace();
         }
     }
