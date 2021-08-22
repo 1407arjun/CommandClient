@@ -4,12 +4,19 @@ const {exec} = require('child_process');
 const os = require('os');
 
 const app = express();
-app.use(bodyParser.urlencoded({extended: true}));
+app.use(bodyParser.urlencoded({extended: true})); //or app.use(express.urlencoded())
+app.use(bodyParser.json()) //or app.use(express.json())
 
-var ipAddress = os.networkInterfaces()['Wi-Fi'][3].address;
+var ipAddress = os.networkInterfaces()['Wi-Fi 2'][3].address;
 
-app.post("/cmd", async (req, res) => {
-    var data = await JSON.parse(req.headers.request);
+app.get("/cmd", (req, res) => {
+    res.send("Correct route");
+});
+
+app.post("/cmd", (req, res) => {
+    console.log(req.body);  
+    var data = req.body;
+    console.log(data.cmd);
     if (data.pin === 1234) {
         exec(data.cmd, (error, stdout, stderr) => {
             if (error) {
